@@ -20,67 +20,24 @@ fun Application.configureSockets() {
 
     routing {
         val connections = Collections.synchronizedSet<Connection>(LinkedHashSet())
-        webSocket("/room/{room}") {
+        webSocket("/{room}") {
             val room = call.parameters["room"]!!
-            if (connections.any { it.room == room }) {
-                println("New connection to room $room")
-                val thisConnection = Connection(this, room)
-                connections += thisConnection
-
-                try {
-                    send(Gson().toJson(mapOf<Any, Any>("type" to "response", "success" to true, "room" to room)))
-                    connections.filter { it.room == room }.forEach {
-                        it.session.send(Gson().toJson(mapOf("type" to "remote", "action" to "join")))
-                    }
-                    for (frame in incoming) {
-                        frame as?Frame.Text ?: continue
-                        val received = Gson().fromJson(frame.readText(), Map::class.java)
-                        var `return`: Map<Any, Any>
-
-                        `return` = mapOf("type" to "response", "success" to true)
-                        val send = mapOf("type" to "remote") + received
-
-                        send(Gson().toJson(`return`))
-                        connections.filter { it.room == room }.forEach {
-                            it.session.send(Gson().toJson(send))
-                        }
-                    }
-                } catch (e: Exception) {
-                    println(e.localizedMessage)
-                } finally {
-                    connections.filter { it.room == room }.forEach {
-                        it.session.send(Gson().toJson(mapOf("type" to "remote", "action" to "leave")))
-                    }
-                    println("User disconnected from room $room")
-                    connections -= thisConnection
-                }
-            }
-            else send(Gson().toJson(mapOf<Any, Any>("type" to "response", "success" to false, "reason" to "Invalid game code")))
-        }
-        webSocket("/new") {
-            var room: String
-            do {
-                room = createRoomCode()
-            } while (connections.any { it.room == room })
-
-            println("New room created: $room")
             println("New connection to room $room")
             val thisConnection = Connection(this, room)
             connections += thisConnection
 
             try {
                 send(Gson().toJson(mapOf<Any, Any>("type" to "response", "success" to true, "room" to room)))
+                connections.filter { it.room == room }.forEach {
+                    it.session.send(Gson().toJson(mapOf("type" to "remote", "action" to "join")))
+                }
+
                 for (frame in incoming) {
                     frame as?Frame.Text ?: continue
-                    val received = Gson().fromJson(frame.readText(), Map::class.java)
-                    var `return`: Map<Any, Any>
+                    val received = frame.readText()
 
-                    `return` = mapOf("type" to "response", "success" to true)
-                    val send = mapOf("type" to "remote") + received
-
-                    send(Gson().toJson(`return`))
                     connections.filter { it.room == room }.forEach {
-                        it.session.send(Gson().toJson(send))
+                        it.session.send(received)
                     }
                 }
             } catch (e: Exception) {
@@ -90,16 +47,8 @@ fun Application.configureSockets() {
                     it.session.send(Gson().toJson(mapOf("type" to "remote", "action" to "leave")))
                 }
                 println("User disconnected from room $room")
-                println("Room deleted: $room")
                 connections -= thisConnection
             }
         }
     }
-}
-
-fun createRoomCode(): String {
-    val chars = 'A'..'Z'
-    return (1..4)
-        .map { chars.random() }
-        .joinToString("")
 }
