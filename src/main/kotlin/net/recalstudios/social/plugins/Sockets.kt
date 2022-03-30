@@ -43,11 +43,11 @@ fun Application.configureSockets() {
             } catch (e: Exception) {
                 println(e.localizedMessage)
             } finally {
+                println("User disconnected from room $room")
+                connections -= thisConnection
                 connections.filter { it.room == room }.forEach {
                     it.session.send(Gson().toJson(mapOf("type" to "remote", "action" to "leave")))
                 }
-                println("User disconnected from room $room")
-                connections -= thisConnection
             }
         }
     }
