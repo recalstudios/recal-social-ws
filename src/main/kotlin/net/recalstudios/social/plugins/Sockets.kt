@@ -51,13 +51,13 @@ fun Application.configureSockets() {
                     {
                         "auth" -> {
                             // Authenticate user
-                            thisConnection = Connection(this, 0)
+                            thisConnection = Connection(this, arrayOf(0, 5, 7, 8))
                             connections += thisConnection
                             println("${Date()} [Connection-$connectionId] INFO  User authenticated, connection accepted (${connections.size} total)")
                         }
                         "message" -> {
                             // Relay message
-                            connections.forEach {
+                            connections.filter { (parsed["room"] as Double).toInt() in it.rooms }.forEach {
                                 it.session.send(parsed["data"] as String)
                             }
 
