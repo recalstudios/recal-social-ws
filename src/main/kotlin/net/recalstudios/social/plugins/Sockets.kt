@@ -42,7 +42,7 @@ fun Application.configureSockets() {
                     try {
                         parsed = Gson().fromJson(received, Map::class.java)
                     } catch (e: Exception) {
-                        println("${Date()} [Connection-$connectionId] INFO  Received bad data, ignoring")
+                        println("${Date()} [Connection-$connectionId] INFO  Received bad data, ignoring: $received")
                         continue
                     }
 
@@ -50,9 +50,18 @@ fun Application.configureSockets() {
                     when (parsed["type"])
                     {
                         "auth" -> {
+                            // Authenticate user
                             thisConnection = Connection(this, 0)
                             connections += thisConnection
                             println("${Date()} [Connection-$connectionId] INFO  User authenticated, connection accepted (${connections.size} total)")
+                        }
+                        "message" -> {
+                            // Relay message
+                            connections.forEach {
+                                it.session.send(parsed["data"] as String)
+                            }
+
+                            println("${Date()} [Connection-$connectionId] INFO  Relayed message")
                         }
                     }
                 }
