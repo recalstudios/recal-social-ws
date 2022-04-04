@@ -42,6 +42,7 @@ fun Application.configureSockets() {
                     try {
                         parsed = Gson().fromJson(received, Map::class.java)
                     } catch (e: Exception) {
+                        // TODO: Notify socket of bad data
                         println("${Date()} [Connection-$connectionId] INFO  Received bad data, ignoring: $received")
                         continue
                     }
@@ -51,24 +52,30 @@ fun Application.configureSockets() {
                     {
                         "auth" -> {
                             // Authenticate user
+                            // TODO: Get rooms of user
                             thisConnection = Connection(this, arrayOf(0, 5, 7, 8))
                             connections += thisConnection
                             println("${Date()} [Connection-$connectionId] INFO  User authenticated, connection accepted (${connections.size} total)")
                         }
                         "message" -> {
                             // Relay message
+                            // TODO: Check if user is in room
                             connections.filter { (parsed["room"] as Double).toInt() in it.rooms }.forEach {
-                                it.session.send(parsed["data"] as String)
+                                it.session.send(Gson().toJson(parsed))
                             }
+
+                            // TODO: Store message in DB
 
                             println("${Date()} [Connection-$connectionId] INFO  Relayed message")
                         }
+                        // TODO: Handle deleted messages
                     }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
                 // Connection closed
+                // TODO: Notify the socket that it closed
                 println("${Date()} [Connection-$connectionId] INFO  Connection closed")
                 connections -= thisConnection
             }
