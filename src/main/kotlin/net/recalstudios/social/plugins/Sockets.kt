@@ -1,13 +1,21 @@
 package net.recalstudios.social.plugins
 
 import com.google.gson.Gson
+import io.ktor.client.*
+import io.ktor.client.call.*
+import io.ktor.client.engine.cio.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
 import net.recalstudios.social.Connection
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import java.time.Duration
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
+import java.security.cert.X509Certificate
 import java.util.*
+import javax.net.ssl.X509TrustManager
 import kotlin.collections.LinkedHashSet
 
 fun Application.configureSockets() {
@@ -19,7 +27,18 @@ fun Application.configureSockets() {
     }
 
     routing {
-        val connections = Collections.synchronizedSet<Connection>(LinkedHashSet())
+        val connections = Collections.synchronizedSet<Connection>(LinkedHashSet()) // List of all connections to the websocket
+        val client = HttpClient(CIO) {
+            engine {
+                https {
+                    trustManager = object: X509TrustManager { // Disable SSL verification
+                        override fun checkClientTrusted(p0: Array<out X509Certificate>?, p1: String?) { }
+                        override fun checkServerTrusted(p0: Array<out X509Certificate>?, p1: String?) { }
+                        override fun getAcceptedIssuers(): Array<X509Certificate>? = null
+                    }
+                }
+            }
+        }
         webSocket("/") {
             // New connection established
             val connectionId = this.hashCode() // Save unique connection ID
@@ -48,14 +67,29 @@ fun Application.configureSockets() {
                     }
 
                     // Process data
-                    when (parsed["type"])
-                    {
+                    when (parsed["type"]) {
                         "auth" -> {
-                            // Authenticate user
-                            // TODO: Get rooms of user
-                            thisConnection = Connection(this, arrayOf(0, 5, 7, 8))
+                            // Declare empty array of rooms
+                            var rooms = emptyArray<Int>()
+
+                            // Fetch list of rooms associated with the user
+                            val response: HttpResponse = client.get("https://api.social.recalstudios.net/user/rooms") {
+                                headers {
+                                    append(HttpHeaders.Authorization, "Bearer: ${parsed["token"]}")
+                                }
+                            }
+
+                            // Parse the response from the API
+                            val parsedResponse = Gson().fromJson(response.body<String>(), Array::class.java)
+                            for (room in parsedResponse) {
+                                room as Map<*, *>
+                                rooms += (room["id"] as Double).toInt()
+                            }
+
+                            // Store data in list of connections
+                            thisConnection = Connection(this, rooms)
                             connections += thisConnection
-                            println("${Date()} [Connection-$connectionId] INFO  User authenticated, connection accepted (${connections.size} total)")
+                            println("${Date()} [Connection-$connectionId] INFO  User authenticated to ${rooms.size} rooms, connection accepted (${connections.size} total)")
                         }
                         "message" -> {
                             // Relay message
