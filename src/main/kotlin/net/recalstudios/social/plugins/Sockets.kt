@@ -69,13 +69,16 @@ fun Application.configureSockets() {
                     // Process data
                     when (parsed["type"]) {
                         "auth" -> {
+                            // Store token
+                            token = parsed["token"] as String
+
                             // Declare empty array of rooms
                             var rooms = emptyArray<Int>()
 
                             // Fetch list of rooms associated with the user
                             val response: HttpResponse = client.get("https://api.social.recalstudios.net/user/rooms") {
                                 headers {
-                                    append(HttpHeaders.Authorization, "Bearer: ${parsed["token"]}")
+                                    append(HttpHeaders.Authorization, token)
                                 }
                             }
 
