@@ -3,16 +3,18 @@ package net.recalstudios.social.plugins
 import com.google.gson.Gson
 import io.ktor.client.*
 import io.ktor.client.call.*
+import io.ktor.client.call.body
 import io.ktor.client.engine.cio.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import net.recalstudios.social.Connection
 import io.ktor.server.websocket.*
-import io.ktor.websocket.*
+import io.ktor.server.websocket.*
 import java.time.Duration
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
+import io.ktor.websocket.*
 import java.security.cert.X509Certificate
 import java.util.*
 import javax.net.ssl.X509TrustManager
@@ -32,8 +34,8 @@ fun Application.configureSockets() {
             engine {
                 https {
                     trustManager = object: X509TrustManager { // Disable SSL verification
-                        override fun checkClientTrusted(p0: Array<out X509Certificate>?, p1: String?) { }
-                        override fun checkServerTrusted(p0: Array<out X509Certificate>?, p1: String?) { }
+                        override fun checkClientTrusted(p0: Array<out X509Certificate>?, p1: String?) {}
+                        override fun checkServerTrusted(p0: Array<out X509Certificate>?, p1: String?) {}
                         override fun getAcceptedIssuers(): Array<X509Certificate>? = null
                     }
                 }
