@@ -3,22 +3,19 @@ package net.recalstudios.social.plugins
 import com.google.gson.Gson
 import io.ktor.client.*
 import io.ktor.client.call.*
-import io.ktor.client.call.body
 import io.ktor.client.engine.cio.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
-import net.recalstudios.social.Connection
-import io.ktor.server.websocket.*
-import io.ktor.server.websocket.*
-import java.time.Duration
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
+import io.ktor.server.websocket.*
 import io.ktor.websocket.*
+import net.recalstudios.social.Connection
 import java.security.cert.X509Certificate
+import java.time.Duration
 import java.util.*
 import javax.net.ssl.X509TrustManager
-import kotlin.collections.LinkedHashSet
 
 fun Application.configureSockets() {
     install(WebSockets) {
@@ -41,7 +38,7 @@ fun Application.configureSockets() {
                 }
             }
         }
-        webSocket("/") {
+        webSocket("/") { // websocketSession
             // New connection established
             val connectionId = this.hashCode() // Save unique connection ID
             var thisConnection: Connection? = null // Declare empty connection
@@ -51,7 +48,7 @@ fun Application.configureSockets() {
             try {
                 // Ask the client for credentials
                 send(Gson().toJson(mapOf("type" to "status", "data" to "auth"))) // Send response
-                var token: String // Declare token object
+                var token: String? = null // Declare token object
 
                 // Listen for incoming data
                 for (frame in incoming) {
@@ -97,15 +94,24 @@ fun Application.configureSockets() {
                             println("${Date()} [Connection-$connectionId] INFO  User authenticated to ${rooms.size} rooms, connection accepted (${connections.size} total)")
                         }
                         "message" -> {
-                            // Relay message
-                            // TODO: Check if user is in room
-                            connections.filter { (parsed["room"] as Double).toInt() in it.rooms }.forEach {
-                                it.session.send(Gson().toJson(parsed))
+                            if (token == null) {
+                                // TODO: Notify client it is not authenticated
+                            } else {
+                                // Relay message to clients in the relevant room
+                                connections.filter { (parsed["room"] as Double).toInt() in it.rooms }.forEach {
+                                    it.session.send(Gson().toJson(parsed))
+                                }
+
+                                // Send message to API
+                                val response: HttpResponse = client.post("https://api.social.recalstudios.net/chat/room/message/save") {
+                                    headers {
+                                        append(HttpHeaders.Authorization, token)
+                                    }
+                                    setBody(Gson().toJson(mapOf("data" to parsed["content"], "chatroomId" to parsed["room"])))
+                                }
+
+                                println("${Date()} [Connection-$connectionId] INFO  Relayed message")
                             }
-
-                            // TODO: Store message in DB
-
-                            println("${Date()} [Connection-$connectionId] INFO  Relayed message")
                         }
                         // TODO: Handle deleted messages
                     }

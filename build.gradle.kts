@@ -4,7 +4,7 @@ val logback_version: String by project
 
 plugins {
     application
-    kotlin("jvm") version "1.6.10"
+    kotlin("jvm") version "1.6.21"
 }
 
 group = "net.recalstudios.social"
@@ -27,8 +27,8 @@ dependencies {
     implementation("io.ktor:ktor-server-netty-jvm:$ktor_version")
     implementation("ch.qos.logback:logback-classic:$logback_version")
     implementation("com.google.code.gson:gson:2.9.0")
-    implementation("io.ktor:ktor-client-core-jvm:2.0.0")
-    implementation("io.ktor:ktor-client-cio-jvm:2.0.0")
+    implementation("io.ktor:ktor-client-core-jvm:2.0.1")
+    implementation("io.ktor:ktor-client-cio-jvm:2.0.1")
     testImplementation("io.ktor:ktor-server-tests-jvm:$ktor_version")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
 }
