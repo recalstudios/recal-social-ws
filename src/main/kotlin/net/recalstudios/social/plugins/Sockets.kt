@@ -1,6 +1,7 @@
 package net.recalstudios.social.plugins
 
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
@@ -12,10 +13,13 @@ import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import net.recalstudios.social.Connection
+import net.recalstudios.social.models.message.Message
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.util.*
 import javax.net.ssl.X509TrustManager
+
+inline fun <reified T> Gson.fromJson(json: String) = fromJson<T>(json, object: TypeToken<T>() {}.type)
 
 fun Application.configureSockets() {
     install(WebSockets) {
@@ -26,6 +30,7 @@ fun Application.configureSockets() {
     }
 
     routing {
+        val api = "https://api.social.recalstudios.net"
         val connections = Collections.synchronizedSet<Connection>(LinkedHashSet()) // List of all connections to the websocket
         val client = HttpClient(CIO) {
             engine {
@@ -75,7 +80,7 @@ fun Application.configureSockets() {
                             var rooms = emptyArray<Int>()
 
                             // Fetch list of rooms associated with the user
-                            val response: HttpResponse = client.get("https://api.social.recalstudios.net/user/rooms") {
+                            val response: HttpResponse = client.get("$api/user/rooms") {
                                 headers {
                                     append(HttpHeaders.Authorization, token)
                                 }
@@ -95,20 +100,28 @@ fun Application.configureSockets() {
                         }
                         "message" -> {
                             if (token == null) {
-                                // TODO: Notify client it is not authenticated
+                                // Notify client it is not authenticated
+                                send(Gson().toJson(mapOf("type" to "status", "data" to "auth")))
                             } else {
+                                // Store data as message
+                                val newParsed = Gson().fromJson<Message>(received)
+
                                 // Relay message to clients in the relevant room
-                                connections.filter { (parsed["room"] as Double).toInt() in it.rooms }.forEach {
+                                connections.filter { newParsed.room in it.rooms }.forEach {
                                     it.session.send(Gson().toJson(parsed))
                                 }
 
                                 // Send message to API
-                                val response: HttpResponse = client.post("https://api.social.recalstudios.net/chat/room/message/save") {
+                                val response: HttpResponse = client.post("$api/chat/room/message/save") {
                                     headers {
                                         append(HttpHeaders.Authorization, token)
+                                        append(HttpHeaders.ContentType, "application/json")
                                     }
-                                    setBody(Gson().toJson(mapOf("data" to parsed["content"], "chatroomId" to parsed["room"])))
+                                    setBody(Gson().toJson(newParsed))
                                 }
+
+                                println(Gson().toJson(newParsed))
+                                println(response)
 
                                 println("${Date()} [Connection-$connectionId] INFO  Relayed message")
                             }
