@@ -13,7 +13,8 @@ import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import net.recalstudios.social.Connection
-import net.recalstudios.social.models.AuthMessage
+import net.recalstudios.social.models.AuthPayload
+import net.recalstudios.social.models.DeletePayload
 import net.recalstudios.social.models.Payload
 import net.recalstudios.social.models.message.Message
 import java.security.cert.X509Certificate
@@ -84,7 +85,7 @@ fun Application.configureSockets() {
                     when (type) {
                         "auth" -> {
                             // Get payload
-                            val payload: AuthMessage = Gson().fromJson(data)
+                            val payload: AuthPayload = Gson().fromJson(data)
 
                             // Store token
                             token = payload.token
@@ -105,6 +106,9 @@ fun Application.configureSockets() {
                                 room as Map<*, *>
                                 rooms += (room["id"] as Double).toInt()
                             }
+
+                            // Notify client it has been authenticated
+                            send(Gson().toJson(Payload("status", "ok")))
 
                             // Store data in list of connections
                             thisConnection = Connection(this, rooms)
@@ -137,7 +141,36 @@ fun Application.configureSockets() {
                                 println("${Date()} [Connection-$connectionId] INFO  Relayed message")
                             }
                         }
-                        // TODO: Handle deleted messages
+                        "delete" -> {
+                            // Get payload
+                            val payload: DeletePayload = Gson().fromJson(data)
+
+                            // Check if session is authenticated
+                            if (token == null) {
+                                // Notify client it is not authenticated
+                                send(Gson().toJson(Payload("status", "auth")))
+                            } else {
+                                // Send message to API
+                                val response: HttpResponse = client.post("$api/chat/room/message/delete") {
+                                    headers {
+                                        append(HttpHeaders.Authorization, token)
+                                        append(HttpHeaders.ContentType, "application/json")
+                                    }
+                                    setBody(Gson().toJson(object {
+                                        val messageId = payload.id
+                                    }))
+                                }
+
+                                // Relay message to clients in the relevant room if the request was successful
+                                if (response.body<String>().toBoolean()) {
+                                    connections.filter { payload.room in it.rooms }.forEach {
+                                        it.session.send(Gson().toJson(payload))
+                                    }
+                                }
+
+                                println("${Date()} [Connection-$connectionId] INFO  Deleted message ${payload.id}")
+                            }
+                        }
                     }
                 }
             } catch (e: Exception) {
