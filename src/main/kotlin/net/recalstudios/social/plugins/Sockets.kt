@@ -13,68 +13,81 @@ import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import net.recalstudios.social.Connection
+import net.recalstudios.social.models.AuthMessage
+import net.recalstudios.social.models.Payload
 import net.recalstudios.social.models.message.Message
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.util.*
 import javax.net.ssl.X509TrustManager
 
-inline fun <reified T> Gson.fromJson(json: String) = fromJson<T>(json, object: TypeToken<T>() {}.type)
+const val api = "https://api.social.recalstudios.net" // URL to the API
+val connections = Collections.synchronizedSet<Connection>(LinkedHashSet()) // List of all connections to the websocket
+// This gives a weak warning for unchecked nullability issues, but breaks when specifying type explicitly
 
+// Create HttpClient without SSL verification for API communication
+val client = HttpClient(CIO) {
+    engine {
+        https {
+            trustManager = object: X509TrustManager {
+                override fun checkClientTrusted(p0: Array<out X509Certificate>?, p1: String?) {}
+                override fun checkServerTrusted(p0: Array<out X509Certificate>?, p1: String?) {}
+                override fun getAcceptedIssuers(): Array<X509Certificate>? = null
+            }
+        }
+    }
+}
+
+// Allow TypeToken to be used when parsing JSON
+inline fun <reified T> Gson.fromJson(json: String): T = fromJson(json, object: TypeToken<T>() {}.type)
+
+// Configure the WebSocket
 fun Application.configureSockets() {
     install(WebSockets) {
         pingPeriod = Duration.ofSeconds(15)
-        timeout = Duration.ofSeconds(15)
+        timeout = Duration.ofSeconds(30)
         maxFrameSize = Long.MAX_VALUE
         masking = false
     }
 
     routing {
-        val api = "https://api.social.recalstudios.net"
-        val connections = Collections.synchronizedSet<Connection>(LinkedHashSet()) // List of all connections to the websocket
-        val client = HttpClient(CIO) {
-            engine {
-                https {
-                    trustManager = object: X509TrustManager { // Disable SSL verification
-                        override fun checkClientTrusted(p0: Array<out X509Certificate>?, p1: String?) {}
-                        override fun checkServerTrusted(p0: Array<out X509Certificate>?, p1: String?) {}
-                        override fun getAcceptedIssuers(): Array<X509Certificate>? = null
-                    }
-                }
-            }
-        }
         webSocket("/") { // websocketSession
             // New connection established
+            // Declare values
             val connectionId = this.hashCode() // Save unique connection ID
             var thisConnection: Connection? = null // Declare empty connection
+            var token: String? = null // Declare token object
+
+            // Ask the client for credentials
+            send(Gson().toJson(Payload("status", "auth"))) // Send response
             println("${Date()} [Connection-$connectionId] INFO  Connection attempt, asking for credentials")
 
-            // Process connection
+            // Listen for incoming data
             try {
-                // Ask the client for credentials
-                send(Gson().toJson(mapOf("type" to "status", "data" to "auth"))) // Send response
-                var token: String? = null // Declare token object
-
-                // Listen for incoming data
                 for (frame in incoming) {
-                    frame as? Frame.Text ?: continue // Assure type of data
-                    val received = frame.readText() // Store incoming data
-                    val parsed: Map<*, *> // Declare parsed data
+                    frame as? Frame.Text ?: continue // Assure data is text
+                    val data = frame.readText() // Store incoming data
+                    var type: String // Declare the type of message received
 
-                    // Try to parse data
+                    // Find message type
                     try {
-                        parsed = Gson().fromJson(received, Map::class.java)
+                        val payload: Payload = Gson().fromJson(data)
+                        type = payload.type
                     } catch (e: Exception) {
-                        // TODO: Notify socket of bad data
-                        println("${Date()} [Connection-$connectionId] INFO  Received bad data, ignoring: $received")
+                        // Notify client of bad data
+                        send(Gson().toJson(Payload("info", "invalid")))
+                        println("${Date()} [Connection-$connectionId] INFO  Received bad data, ignoring: $data")
                         continue
                     }
 
                     // Process data
-                    when (parsed["type"]) {
+                    when (type) {
                         "auth" -> {
+                            // Get payload
+                            val payload: AuthMessage = Gson().fromJson(data)
+
                             // Store token
-                            token = parsed["token"] as String
+                            token = payload.token
 
                             // Declare empty array of rooms
                             var rooms = emptyArray<Int>()
@@ -99,29 +112,27 @@ fun Application.configureSockets() {
                             println("${Date()} [Connection-$connectionId] INFO  User authenticated to ${rooms.size} rooms, connection accepted (${connections.size} total)")
                         }
                         "message" -> {
+                            // Get payload
+                            val payload: Message = Gson().fromJson(data)
+
+                            // Check if session is authenticated
                             if (token == null) {
                                 // Notify client it is not authenticated
-                                send(Gson().toJson(mapOf("type" to "status", "data" to "auth")))
+                                send(Gson().toJson(Payload("status", "auth")))
                             } else {
-                                // Store data as message
-                                val newParsed = Gson().fromJson<Message>(received)
-
-                                // Relay message to clients in the relevant room
-                                connections.filter { newParsed.room in it.rooms }.forEach {
-                                    it.session.send(Gson().toJson(parsed))
-                                }
-
                                 // Send message to API
                                 val response: HttpResponse = client.post("$api/chat/room/message/save") {
                                     headers {
                                         append(HttpHeaders.Authorization, token)
                                         append(HttpHeaders.ContentType, "application/json")
                                     }
-                                    setBody(Gson().toJson(newParsed))
+                                    setBody(Gson().toJson(payload))
                                 }
 
-                                println(Gson().toJson(newParsed))
-                                println(response)
+                                // Relay message to clients in the relevant room
+                                connections.filter { payload.room in it.rooms }.forEach {
+                                    it.session.send(response.body<String>())
+                                }
 
                                 println("${Date()} [Connection-$connectionId] INFO  Relayed message")
                             }
@@ -133,7 +144,8 @@ fun Application.configureSockets() {
                 e.printStackTrace()
             } finally {
                 // Connection closed
-                // TODO: Notify the socket that it closed
+                // Notify the socket that it closed
+                send(Gson().toJson(Payload("status", "closed")))
                 println("${Date()} [Connection-$connectionId] INFO  Connection closed")
                 connections -= thisConnection
             }
