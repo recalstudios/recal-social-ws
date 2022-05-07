@@ -5,7 +5,7 @@ import io.ktor.server.netty.*
 import net.recalstudios.social.plugins.*
 
 fun main() {
-    embeddedServer(Netty, port = 80, host = "0.0.0.0") {
+    embeddedServer(Netty, port = 5502, host = "0.0.0.0") {
         configureRouting()
         configureSockets()
     }.start(wait = true)

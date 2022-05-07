@@ -76,7 +76,7 @@ fun Application.configureSockets() {
                         type = payload.type
                     } catch (e: Exception) {
                         // Notify client of bad data
-                        send(Gson().toJson(Payload("info", "invalid")))
+                        send(Gson().toJson(Payload("invalid", data)))
                         println("${Date()} [Connection-$connectionId] INFO  Received bad data, ignoring: $data")
                         continue
                     }
