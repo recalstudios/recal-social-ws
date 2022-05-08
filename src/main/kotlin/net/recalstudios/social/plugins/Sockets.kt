@@ -177,10 +177,8 @@ fun Application.configureSockets() {
                 e.printStackTrace()
             } finally {
                 // Connection closed
-                // Notify the socket that it closed
-                send(Gson().toJson(Payload("status", "closed")))
                 println("${Date()} [Connection-$connectionId] INFO  Connection closed")
-                connections -= thisConnection
+                connections -= thisConnection // Remove from memory
             }
         }
     }
