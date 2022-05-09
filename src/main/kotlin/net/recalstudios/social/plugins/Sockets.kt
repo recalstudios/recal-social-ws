@@ -16,6 +16,7 @@ import net.recalstudios.social.Connection
 import net.recalstudios.social.models.AuthPayload
 import net.recalstudios.social.models.DeletePayload
 import net.recalstudios.social.models.Payload
+import net.recalstudios.social.models.SystemPayload
 import net.recalstudios.social.models.message.Message
 import java.security.cert.X509Certificate
 import java.time.Duration
@@ -169,6 +170,23 @@ fun Application.configureSockets() {
                                 }
 
                                 println("${Date()} [Connection-$connectionId] INFO  Deleted message ${payload.id}")
+                            }
+                        }
+                        "system" -> {
+                            // Get payload
+                            val payload: SystemPayload = Gson().fromJson(data)
+
+                            // Check if session is authenticated
+                            if (token == null) {
+                                // Notify client it is not authenticated
+                                send(Gson().toJson(Payload("status", "auth")))
+                            } else {
+                                // Relay message to clients in the relevant room
+                                connections.filter { payload.room in it.rooms }.forEach {
+                                    it.session.send(Gson().toJson(payload))
+                                }
+
+                                println("${Date()} [Connection-$connectionId] INFO  Relayed system message")
                             }
                         }
                     }
