@@ -124,6 +124,7 @@ fun Application.configureSockets() {
                             if (token == null) {
                                 // Notify client it is not authenticated
                                 send(Gson().toJson(Payload("status", "auth")))
+                                println("${Date()} [Connection-$connectionId] INFO  Tried sending message without auth, ignoring")
                             } else {
                                 // Send message to API
                                 val response: HttpResponse = client.post("$api/chat/room/message/save") {
@@ -150,6 +151,7 @@ fun Application.configureSockets() {
                             if (token == null) {
                                 // Notify client it is not authenticated
                                 send(Gson().toJson(Payload("status", "auth")))
+                                println("${Date()} [Connection-$connectionId] INFO  Tried deleting message without auth, ignoring")
                             } else {
                                 // Send message to API
                                 val response: HttpResponse = client.post("$api/chat/room/message/delete") {
@@ -180,6 +182,7 @@ fun Application.configureSockets() {
                             if (token == null) {
                                 // Notify client it is not authenticated
                                 send(Gson().toJson(Payload("status", "auth")))
+                                println("${Date()} [Connection-$connectionId] INFO  Tried sending system message without auth, ignoring")
                             } else {
                                 // Relay message to clients in the relevant room
                                 connections.filter { payload.room in it.rooms }.forEach {
