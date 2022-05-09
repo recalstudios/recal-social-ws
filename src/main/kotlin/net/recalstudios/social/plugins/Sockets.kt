@@ -13,10 +13,7 @@ import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import net.recalstudios.social.Connection
-import net.recalstudios.social.models.AuthPayload
-import net.recalstudios.social.models.DeletePayload
-import net.recalstudios.social.models.Payload
-import net.recalstudios.social.models.SystemPayload
+import net.recalstudios.social.models.*
 import net.recalstudios.social.models.message.Message
 import java.security.cert.X509Certificate
 import java.time.Duration
@@ -190,6 +187,24 @@ fun Application.configureSockets() {
                                 }
 
                                 println("${Date()} [Connection-$connectionId] INFO  Relayed system message")
+                            }
+                        }
+                        "typing" -> {
+                            // Get payload
+                            val payload: TypingPayload = Gson().fromJson(data)
+
+                            // Check if session is authenticated
+                            if (token == null) {
+                                // Notify client it is not authenticated
+                                send(Gson().toJson(Payload("status", "auth")))
+                                println("${Date()} [Connection-$connectionId] INFO  Tried sending typing status without auth, ignoring")
+                            } else {
+                                // Relay message to clients in the relevant room
+                                connections.filter { payload.room in it.rooms }.forEach {
+                                    it.session.send(Gson().toJson(payload))
+                                }
+
+                                println("${Date()} [Connection-$connectionId] INFO  Relayed typing status")
                             }
                         }
                     }
