@@ -123,6 +123,9 @@ fun Application.configureSockets() {
                                 send(Gson().toJson(Payload("status", "auth")))
                                 println("${Date()} [Connection-$connectionId] INFO  Tried sending message without auth, ignoring")
                             } else {
+                                // Sanitize html tags
+                                payload.content.text = payload.content.text.replace("<", "&lt;")
+
                                 // Send message to API
                                 val response: HttpResponse = client.post("$api/chat/room/message/save") {
                                     headers {

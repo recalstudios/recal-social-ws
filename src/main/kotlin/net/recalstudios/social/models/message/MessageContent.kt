@@ -2,7 +2,7 @@ package net.recalstudios.social.models.message
 
 data class MessageContent(
     val attachments: Array<MessageAttachment>,
-    val text: String
+    var text: String
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
