@@ -100,9 +100,12 @@ fun Application.configureSockets() {
 
                             // Parse the response from the API
                             val parsedResponse = Gson().fromJson(response.body<String>(), Array::class.java)
-                            for (room in parsedResponse) {
-                                room as Map<*, *>
-                                rooms += (room["id"] as Double).toInt()
+                            // Only run if parsedResponse is not null
+                            parsedResponse?.let {
+                                for (room in parsedResponse) {
+                                    room as Map<*, *>
+                                    rooms += (room["id"] as Double).toInt()
+                                }
                             }
 
                             // Notify client it has been authenticated
