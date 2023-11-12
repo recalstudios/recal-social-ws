@@ -1,0 +1,6 @@
+services:
+  recal-social-ws:
+    build:
+      context: .
+    ports:
+      - 80:80
