@@ -20,7 +20,9 @@ import java.time.Duration
 import java.util.*
 import javax.net.ssl.X509TrustManager
 
-const val api = "https://api.social.recalstudios.net" // URL to the API
+// URL to the API
+const val api = "https://api.social.recalstudios.net/v1" // this isn't the best way to add the version, but it works for now
+
 val connections = Collections.synchronizedSet<Connection>(LinkedHashSet()) // List of all connections to the websocket
 // This gives a weak warning for unchecked nullability issues, but breaks when specifying type explicitly
 
