@@ -26,6 +26,12 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
       this.connections.push(thisConnection);
       console.log(`New connection: ${thisConnection.id}, ${this.connections.length} total`);
 
+      // Ask the client for credentials
+      ws.send(JSON.stringify({
+        type: 'status',
+        data: 'auth'
+      }));
+
       // Register a callback for getting a message
       ws.onmessage = (event: MessageEvent) =>
       {
