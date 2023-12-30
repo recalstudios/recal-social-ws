@@ -8,6 +8,7 @@ import {MessagePayload} from "../types/payloads/message-payload";
 import axios from "axios";
 import {API} from "../config";
 import {Logger} from "@nestjs/common";
+import {DeletePayload} from "../types/payloads/delete-payload";
 
 @WebSocketGateway()
 export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
@@ -92,7 +93,7 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
                         messagePayload.content.text = messagePayload.content.text.replaceAll('<', '&lt;');
 
                         // Send the message to the API
-                        const apiResponse = (await axios.post(`${API}/chat/room/message/save`, messagePayload, {
+                        const messageResponse = (await axios.post(`${API}/chat/room/message/save`, messagePayload, {
                             headers: {
                                 'Authorization': thisConnection.token,
                                 'Content-Type': 'application/json'
@@ -102,8 +103,38 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
                         // Relay the message to connected clients in the relevant room
                         const connectionsInRoom = this.connections.filter(c => c instanceof AuthorizedConnection && c.rooms.includes(messagePayload.room));
                         this.logger.log(`Connection ${thisConnection.id} successfully relayed message to ${connectionsInRoom.length} client(s)!`);
-                        return connectionsInRoom.forEach(c => c.ws.send(JSON.stringify(apiResponse)));
-                    case 'delete': case 'system': case 'typing':
+                        return connectionsInRoom.forEach(c => c.ws.send(JSON.stringify(messageResponse)));
+                    case 'delete':
+                        // Make sure that the client is authorized
+                        if (!(thisConnection instanceof AuthorizedConnection))
+                        {
+                            this.logger.warn(`Connection ${thisConnection.id} tried deleting a message without authorization`);
+                            return ws.send(new GeneralPayload('invalid', payload).toString());
+                        }
+
+                        // Store the payload as a DeletePayload
+                        const deletePayload: DeletePayload = payload as DeletePayload;
+
+                        // Query the API for message deletion
+                        const deleteResponse = (await axios.post(`${API}/chat/room/message/delete`, { messageId: deletePayload.id }, {
+                            headers: {
+                                'Authorization': thisConnection.token,
+                                'Content-Type': 'application/json'
+                            }
+                        })).data;
+
+                        // Check if the deletion was successful
+                        if (deleteResponse)
+                        {
+                            this.logger.log(`Connection ${thisConnection.id} deleted message ${deletePayload.id}`);
+                            return this.connections.filter(c => c instanceof AuthorizedConnection && c.rooms.includes(deletePayload.room)).forEach(c => c.ws.send(JSON.stringify(deletePayload)));
+                        }
+                        else
+                        {
+                            this.logger.warn(`Connection ${thisConnection.id} unsuccessfully tried to delete message ${deletePayload.id}`);
+                            return ws.send(new GeneralPayload('invalid', payload).toString());
+                        }
+                    case 'system': case 'typing':
                         return ws.send('Not yet implemented');
                     default:
                         return ws.send(new GeneralPayload('invalid', payload).toString());
