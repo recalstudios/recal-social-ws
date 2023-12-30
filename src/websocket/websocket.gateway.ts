@@ -134,9 +134,7 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
                             this.logger.warn(`Connection ${thisConnection.id} unsuccessfully tried to delete message ${deletePayload.id}`);
                             return ws.send(new GeneralPayload('invalid', payload).toString());
                         }
-                    case 'system': case 'typing':
-                        return ws.send('Not yet implemented');
-                    default:
+                    case 'system': case 'typing': default:
                         return ws.send(new GeneralPayload('invalid', payload).toString());
                 }
             }
