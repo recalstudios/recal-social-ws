@@ -7,10 +7,12 @@ import {AuthorizedConnection} from "../types/authorized-connection";
 import {MessagePayload} from "../types/payloads/message-payload";
 import axios from "axios";
 import {API} from "../config";
+import {Logger} from "@nestjs/common";
 
 @WebSocketGateway()
 export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
 {
+  private readonly logger: Logger = new Logger(WebSocketGateway.name);
   private connections: (Connection | AuthorizedConnection)[] = [];
 
   private createConnectionId(): string
@@ -26,7 +28,7 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
       // Declare the connection and add it to the connection list
       let thisConnection: Connection | AuthorizedConnection = new Connection(this.createConnectionId(), ws);
       this.connections.push(thisConnection);
-      console.log(`New connection: ${thisConnection.id}, ${this.connections.length} total`);
+      this.logger.log(`New connection: ${thisConnection.id}, ${this.connections.length} total (${this.connections.filter(c => c instanceof AuthorizedConnection).length} authorized)`);
 
       // Ask the client for credentials
       ws.send(new GeneralPayload('status', 'auth').toString());
@@ -63,12 +65,21 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
               this.connections[connectionIndex] = thisConnection;
 
               // Return OK to the client
+              this.logger.log(`Connection ${thisConnection.id} successfully authorized!`);
               return ws.send(new GeneralPayload('status', 'ok').toString());
             }
-            else return ws.send(new GeneralPayload('invalid', payload).toString());
+            else
+            {
+              this.logger.warn(`Incorrect authorization attempt from connection ${thisConnection.id}`);
+              return ws.send(new GeneralPayload('invalid', payload).toString());
+            }
           case 'message':
             // Make sure that the client is authorized
-            if (!(thisConnection instanceof AuthorizedConnection)) return ws.send(new GeneralPayload('invalid', payload).toString());
+            if (!(thisConnection instanceof AuthorizedConnection))
+            {
+              this.logger.warn(`Connection ${thisConnection.id} tried sending message without authorization`);
+              return ws.send(new GeneralPayload('invalid', payload).toString());
+            }
 
             // Store the payload as a MessagePayload
             const messagePayload: MessagePayload = payload as MessagePayload;
@@ -85,7 +96,8 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
             })).data;
 
             // Relay the message to connected clients in the relevant room
-            // man this code is so unreadable
+            // man this code is so unreadable TODO: This can be improved
+              this.logger.log(`Connection ${thisConnection.id} successfully relayed message to ${this.connections.filter(c => c instanceof AuthorizedConnection && c.rooms.includes(messagePayload.room)).length} client(s)!`);
             return this.connections.filter(c => c instanceof AuthorizedConnection && c.rooms.includes(messagePayload.room)).forEach(c => c.ws.send(JSON.stringify(apiResponse)));
           case 'delete': case 'system': case 'typing':
             return ws.send('Not yet implemented');
@@ -94,6 +106,8 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
         }
       }
     });
+
+    this.logger.log('Registered connection callback');
   }
 
   handleDisconnect(client: WebSocket): void
@@ -105,6 +119,6 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
     // Remove the connection from the list
     this.connections.splice(connectionIndex, 1);
 
-    console.log(`Client ${connection.id} disconnected, ${this.connections.length} remaining`);
+    this.logger.log(`Client ${connection.id} disconnected, ${this.connections.length} remaining`);
   }
 }
