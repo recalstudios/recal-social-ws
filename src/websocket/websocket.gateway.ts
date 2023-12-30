@@ -29,10 +29,20 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
       // Register a callback for getting a message
       ws.onmessage = (event: MessageEvent) =>
       {
-        let payload = event.data;
+        // Store the received data
+        let payload: GeneralPayload = JSON.parse(event.data);
 
-        // Return data to sender
-        ws.send(`got data: ${payload}`);
+        // Let the client know if it sent invalid data
+        if (!payload.type || !payload.data) return ws.send(new GeneralPayload('invalid', payload).toString());
+
+        // Process data based on its type
+        switch (payload.type)
+        {
+          case 'auth': case 'message': case 'delete': case 'system': case 'typing':
+            return ws.send('Not yet implemented');
+          default:
+            return ws.send(new GeneralPayload('invalid', payload).toString());
+        }
       }
     });
   }
