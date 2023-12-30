@@ -1,9 +1,12 @@
-import { OnGatewayDisconnect, OnGatewayInit, WebSocketGateway } from "@nestjs/websockets";
-import { randomBytes } from "crypto"; // This is probably a shit way to import this lmao
-import { Connection } from "../types/connection";
+import {OnGatewayDisconnect, OnGatewayInit, WebSocketGateway} from "@nestjs/websockets";
+import * as crypto from "crypto";
+import {Connection} from "../types/connection";
 import {GeneralPayload} from "../types/payloads/general-payload";
 import {AuthPayload} from "../types/payloads/auth-payload";
 import {AuthorizedConnection} from "../types/authorized-connection";
+import {MessagePayload} from "../types/payloads/message-payload";
+import axios from "axios";
+import {API} from "../config";
 
 @WebSocketGateway()
 export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
@@ -13,7 +16,7 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
   private createConnectionId(): string
   {
     // TODO: Make sure this connection ID has not already been used
-    return randomBytes(8).toString('hex').toUpperCase();
+    return crypto.randomBytes(8).toString('hex').toUpperCase();
   }
 
   afterInit(server: any): void
@@ -47,13 +50,44 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
             // Store the payload as an AuthPayload to get access to the token
             const authPayload: AuthPayload = payload as AuthPayload;
 
+            // Store the index of this connection in the connection list. This will be used later if the upgrade is successful.
+            const connectionIndex = this.connections.indexOf(thisConnection);
+
             // Try to upgrade the connection to an AuthorizedConnection
             thisConnection = await thisConnection.authorize(authPayload.token);
 
             // Check if the authorization was successful
-            if (thisConnection instanceof AuthorizedConnection) return ws.send(new GeneralPayload('status', 'ok').toString());
+            if (thisConnection instanceof AuthorizedConnection)
+            {
+              // Update this Connection in the connection list to an AuthorizedConnection
+              this.connections[connectionIndex] = thisConnection;
+
+              // Return OK to the client
+              return ws.send(new GeneralPayload('status', 'ok').toString());
+            }
             else return ws.send(new GeneralPayload('invalid', payload).toString());
-          case 'message': case 'delete': case 'system': case 'typing':
+          case 'message':
+            // Make sure that the client is authorized
+            if (!(thisConnection instanceof AuthorizedConnection)) return ws.send(new GeneralPayload('invalid', payload).toString());
+
+            // Store the payload as a MessagePayload
+            const messagePayload: MessagePayload = payload as MessagePayload;
+
+            // Sanitize message
+            messagePayload.content.text = messagePayload.content.text.replaceAll('<', '&lt;');
+
+            // Send the message to the API
+            const apiResponse = (await axios.post(`${API}/chat/room/message/save`, messagePayload, {
+              headers: {
+                'Authorization': thisConnection.token,
+                'Content-Type': 'application/json'
+              }
+            })).data;
+
+            // Relay the message to connected clients in the relevant room
+            // man this code is so unreadable
+            return this.connections.filter(c => c instanceof AuthorizedConnection && c.rooms.includes(messagePayload.room)).forEach(c => c.ws.send(JSON.stringify(apiResponse)));
+          case 'delete': case 'system': case 'typing':
             return ws.send('Not yet implemented');
           default:
             return ws.send(new GeneralPayload('invalid', payload).toString());

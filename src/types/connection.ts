@@ -1,16 +1,17 @@
 import {AuthorizedConnection} from "./authorized-connection";
 import axios, {AxiosResponse} from "axios";
+import {API} from "../config";
 
 export class Connection
 {
+  id: string;
+  ws: WebSocket;
+
   constructor(id: string, ws: WebSocket)
   {
     this.id = id;
     this.ws = ws;
   }
-
-  id: string;
-  ws: WebSocket;
 
   async authorize(token: string): Promise<Connection | AuthorizedConnection>
   {
@@ -18,7 +19,7 @@ export class Connection
     // 'Bearer' is included in the token variable
     let apiResponse: AxiosResponse;
     try {
-      apiResponse = await axios.get('https://api.social.recalstudios.net/v1/user/rooms', { headers: { Authorization: token } }); // This URL should probably be stored in a variable
+      apiResponse = await axios.get(`${API}/user/rooms`, { headers: { Authorization: token } });
     }
     catch (e)
     {
