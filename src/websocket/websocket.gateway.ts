@@ -1,6 +1,7 @@
 import { OnGatewayDisconnect, OnGatewayInit, WebSocketGateway } from "@nestjs/websockets";
 import { randomBytes } from "crypto"; // This is probably a shit way to import this lmao
 import { Connection } from "../types/connection";
+import {GeneralPayload} from "../types/general-payload";
 
 @WebSocketGateway()
 export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
@@ -18,19 +19,12 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
     server.on('connection', (ws: WebSocket) =>
     {
       // Declare the connection and add it to the connection list
-      let thisConnection: Connection = {
-        id: this.createConnectionId(),
-        ws: ws,
-        rooms: undefined // Don't define this until the user is authenticated
-      };
+      let thisConnection: Connection = new Connection(this.createConnectionId(), ws);
       this.connections.push(thisConnection);
       console.log(`New connection: ${thisConnection.id}, ${this.connections.length} total`);
 
       // Ask the client for credentials
-      ws.send(JSON.stringify({
-        type: 'status',
-        data: 'auth'
-      }));
+      ws.send(new GeneralPayload('status', 'auth').toString());
 
       // Register a callback for getting a message
       ws.onmessage = (event: MessageEvent) =>
