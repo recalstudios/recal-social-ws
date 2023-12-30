@@ -9,6 +9,7 @@ import axios from "axios";
 import {API} from "../config";
 import {Logger} from "@nestjs/common";
 import {DeletePayload} from "../types/payloads/delete-payload";
+import * as http from "http";
 
 @WebSocketGateway()
 export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
@@ -24,12 +25,12 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
 
     afterInit(server: any): void
     {
-        server.on('connection', (ws: WebSocket): void =>
+        server.on('connection', (ws: WebSocket, request: http.IncomingMessage): void =>
         {
             // Declare the connection and add it to the connection list
             let thisConnection: Connection | AuthorizedConnection = new Connection(this.createConnectionId(), ws);
             this.connections.push(thisConnection);
-            this.logger.log(`New connection: ${thisConnection.id}, ${this.connections.length} total (${this.connections.filter(c => c instanceof AuthorizedConnection).length} authorized)`);
+            this.logger.log(`New connection from ${request.headers['x-forwarded-for'] || request.socket.remoteAddress}: ${thisConnection.id}, ${this.connections.length} total (${this.connections.filter(c => c instanceof AuthorizedConnection).length} authorized)`);
 
             // Ask the client for credentials
             ws.send(new GeneralPayload('status', 'auth').toString());
