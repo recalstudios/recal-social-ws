@@ -46,8 +46,12 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
         switch (payload.type)
         {
           case 'auth':
-            // Set thisConnection to have type Connection, so that the authorize() function becomes available
-            thisConnection = thisConnection as Connection;
+            // Check if the client is already authorized
+            if (thisConnection instanceof AuthorizedConnection)
+            {
+              this.logger.warn(`Connection ${thisConnection.id} tried authorizing, but it already seems authorized? Ignoring.`);
+              return ws.send(new GeneralPayload('invalid', payload).toString());
+            }
 
             // Store the payload as an AuthPayload to get access to the token
             const authPayload: AuthPayload = payload as AuthPayload;
@@ -96,9 +100,9 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
             })).data;
 
             // Relay the message to connected clients in the relevant room
-            // man this code is so unreadable TODO: This can be improved
-              this.logger.log(`Connection ${thisConnection.id} successfully relayed message to ${this.connections.filter(c => c instanceof AuthorizedConnection && c.rooms.includes(messagePayload.room)).length} client(s)!`);
-            return this.connections.filter(c => c instanceof AuthorizedConnection && c.rooms.includes(messagePayload.room)).forEach(c => c.ws.send(JSON.stringify(apiResponse)));
+            const connectionsInRoom = this.connections.filter(c => c instanceof AuthorizedConnection && c.rooms.includes(messagePayload.room));
+            this.logger.log(`Connection ${thisConnection.id} successfully relayed message to ${connectionsInRoom.length} client(s)!`);
+            return connectionsInRoom.forEach(c => c.ws.send(JSON.stringify(apiResponse)));
           case 'delete': case 'system': case 'typing':
             return ws.send('Not yet implemented');
           default:
