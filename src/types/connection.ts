@@ -4,34 +4,34 @@ import {API} from "../config";
 
 export class Connection
 {
-  id: string;
-  ws: WebSocket;
+    id: string;
+    ws: WebSocket;
 
-  constructor(id: string, ws: WebSocket)
-  {
-    this.id = id;
-    this.ws = ws;
-  }
-
-  async authorize(token: string): Promise<Connection | AuthorizedConnection>
-  {
-    // Get user rooms
-    // 'Bearer' is included in the token variable
-    let apiResponse: AxiosResponse;
-    try {
-      apiResponse = await axios.get(`${API}/user/rooms`, { headers: { Authorization: token } });
-    }
-    catch (e)
+    constructor(id: string, ws: WebSocket)
     {
-      // Invalid token, don't upgrade to AuthorizedConnection
-      return this;
+        this.id = id;
+        this.ws = ws;
     }
 
-    // Get room ID's from response
-    let rooms: number[] = [];
-    apiResponse.data.forEach((r: any) => rooms.push(r.id)); // This has type 'any' because I can't be bothered to create a type for it yet
+    async authorize(token: string): Promise<Connection | AuthorizedConnection>
+    {
+        // Get user rooms
+        // 'Bearer' is included in the token variable
+        let apiResponse: AxiosResponse;
+        try {
+            apiResponse = await axios.get(`${API}/user/rooms`, { headers: { Authorization: token } });
+        }
+        catch (e)
+        {
+            // Invalid token, don't upgrade to AuthorizedConnection
+            return this;
+        }
 
-    // Return an upgraded AuthorizedConnection
-    return new AuthorizedConnection(this.id, this.ws, token, rooms);
-  }
+        // Get room ID's from response
+        let rooms: number[] = [];
+        apiResponse.data.forEach((r: any) => rooms.push(r.id)); // This has type 'any' because I can't be bothered to create a type for it yet
+
+        // Return an upgraded AuthorizedConnection
+        return new AuthorizedConnection(this.id, this.ws, token, rooms);
+    }
 }
