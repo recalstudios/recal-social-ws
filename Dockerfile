@@ -1,5 +1,14 @@
-FROM gradle
-EXPOSE 80
+FROM node:18
 WORKDIR /data
+
+COPY package.json .
+COPY pnpm-lock.yaml .
+
+RUN npm install -g pnpm
+RUN pnpm install
+
 COPY . .
-CMD ["gradle", "run"]
+RUN pnpm run build
+
+EXPOSE 3000
+CMD ["pnpm", "run", "start:prod"]
