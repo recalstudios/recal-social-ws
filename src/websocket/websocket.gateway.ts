@@ -15,7 +15,7 @@ import {TypingPayload} from "../types/payloads/typing-payload";
 @WebSocketGateway()
 export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
 {
-    private readonly logger: Logger = new Logger(WebSocketGateway.name);
+    private readonly logger: Logger = new Logger(WebsocketGateway.name);
     private connections: (Connection | AuthorizedConnection)[] = [];
 
     private createConnectionId(): string

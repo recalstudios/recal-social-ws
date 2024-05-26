@@ -29,7 +29,7 @@ export class Connection
 
         // Get room ID's from response
         let rooms: number[] = [];
-        apiResponse.data.forEach((r: any) => rooms.push(r.id)); // This has type 'any' because I can't be bothered to create a type for it yet
+        apiResponse.data.forEach((r: any) => rooms.push(r.id)); // FIXME: This has type 'any' because I can't be bothered to create a type for it yet
 
         // Return an upgraded AuthorizedConnection
         return new AuthorizedConnection(this.id, this.ws, token, rooms);
