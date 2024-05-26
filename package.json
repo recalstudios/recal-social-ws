@@ -1,6 +1,6 @@
 {
   "name": "recal-social-ws",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "The WebSocket for handling real-time communication in the Recal Social chat application.",
   "author": "Recal Studios",
   "private": true,
