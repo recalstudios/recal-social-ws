@@ -10,6 +10,7 @@ import {API} from "../config";
 import {Logger} from "@nestjs/common";
 import {DeletePayload} from "../types/payloads/delete-payload";
 import * as http from "http";
+import {TypingPayload} from "../types/payloads/typing-payload";
 
 @WebSocketGateway()
 export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
@@ -135,7 +136,23 @@ export class WebsocketGateway implements OnGatewayInit, OnGatewayDisconnect
                             this.logger.warn(`Connection ${thisConnection.id} unsuccessfully tried to delete message ${deletePayload.id}`);
                             return ws.send(new GeneralPayload('invalid', payload).toString());
                         }
-                    case 'system': case 'typing': default:
+                    case 'typing':
+                        // Make sure that the client is authorized
+                        if (!(thisConnection instanceof AuthorizedConnection))
+                        {
+                            this.logger.warn(`Connection ${thisConnection.id} tried relaying typing status without authorization`);
+                            return ws.send(new GeneralPayload('invalid', payload).toString());
+                        }
+
+                        // Store the payload as a TypingPayload
+                        const typingPayload: TypingPayload = payload as TypingPayload;
+
+                        // TODO: Make sure user is reporting itself and not impersonating another user
+
+                        // Relay typing status to other clients in room
+                        this.logger.verbose(`Connection ${thisConnection.id} started typing`);
+                        return this.connections.filter(c => c instanceof AuthorizedConnection && c.rooms.includes(typingPayload.room)).forEach(c => c.ws.send(JSON.stringify(typingPayload)));
+                    case 'system': default:
                         return ws.send(new GeneralPayload('invalid', payload).toString());
                 }
             }
